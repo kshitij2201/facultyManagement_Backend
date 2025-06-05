@@ -1,8 +1,6 @@
-
-
 const express = require("express");
 const router = express.Router();
-const HOD = require("../models/HOD");
+const HOD = require("../models/HODHistory");
 // const Faculty = require("../models/faculty");
 
 // Set faculty as HOD, replacing existing HOD if present
@@ -40,9 +38,9 @@ router.post("/hod", async (req, res) => {
       .status(201)
       .json({ message: `${name} set as HOD for ${department}`, hod });
   } catch (error) {
-  console.error("Error setting HOD:", error.message);
-  res.status(500).json({ message: "Server error" });
-}
+    console.error("Error setting HOD:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 module.exports = router;

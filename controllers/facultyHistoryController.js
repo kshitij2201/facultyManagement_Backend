@@ -1,166 +1,365 @@
-const Faculty = require("../models/faculty");
-const FacultyHistory = require("../models/FacultyHistory");
+// backend/controllers/facultyHistoryController.js
+const mongoose = require("mongoose");
+const Faculty = require("../models/faculty"); // Corrected model name (case-sensitive)
+const HODHistory = require("../models/HODHistory"); // Corrected to HODHistory
+const PrincipalHistory = require("../models/PrincipalHistory"); // Corrected to PrincipalHistory
 
-// Get HOD history
-exports.getHodHistory = async (req, res) => {
+const assignHod = async (req, res) => {
   try {
-    const hodHistory = await FacultyHistory.find({ role: "hod" }).lean();
-    const groupedHistory = hodHistory.reduce((acc, entry) => {
-      const dept = entry.department;
-      if (!acc[dept]) acc[dept] = [];
-      acc[dept].push({
-        facultyId: entry.facultyId,
-        name: entry.name,
-        startDate: entry.startDate.toISOString().split("T")[0],
-        endDate: entry.endDate
-          ? entry.endDate.toISOString().split("T")[0]
-          : null,
-        reason: entry.reason,
-        notes: entry.notes,
+    console.log("[assignHod] Request received:", {
+      body: req.body,
+      timestamp: new Date().toISOString(),
+    });
+
+    const { facultyId, department, reason, createdDate, notes } = req.body;
+
+    // Validate required fields
+    if (!facultyId || !department || !reason || !createdDate) {
+      console.log("[assignHod] Validation failed: Missing required fields", {
+        facultyId,
+        department,
+        reason,
+        createdDate,
       });
-      return acc;
-    }, {});
-    res.status(200).json({ data: groupedHistory });
-  } catch (error) {
-    console.error("Error fetching HOD history:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// Get Principal history
-exports.getPrincipalHistory = async (req, res) => {
-  try {
-    const principalHistory = await FacultyHistory.find({
-      role: "principal",
-    }).lean();
-    const formattedHistory = principalHistory.map((entry) => ({
-      facultyId: entry.facultyId,
-      name: entry.name,
-      startDate: entry.startDate.toISOString().split("T")[0],
-      endDate: entry.endDate ? entry.endDate.toISOString().split("T")[0] : null,
-      reason: entry.reason,
-      notes: entry.notes,
-    }));
-    res.status(200).json({ data: formattedHistory });
-  } catch (error) {
-    console.error("Error fetching Principal history:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// Assign HOD
-exports.assignHod = async (req, res) => {
-  const { facultyId, department, reason, notes, createdDate } = req.body;
-
-  if (!facultyId || !department || !reason || !createdDate) {
-    return res.status(400).json({ message: "Missing required fields" });
-  }
-
-  try {
-    const faculty = await Faculty.findOne({ _id: facultyId, department });
-    if (!faculty) {
-      return res.status(404).json({
-        message:
-          "Faculty not found or does not belong to the specified department",
+      return res.status(400).json({
+        success: false,
+        message: "facultyId, department, reason, and createdDate are required",
       });
     }
 
-    // Find and update the current HOD (if any) for the department
-    const currentHod = await Faculty.findOne({ department, role: "hod" });
-    if (currentHod) {
-      currentHod.role = null;
-      await currentHod.save();
-      // Update FacultyHistory for the previous HOD
-      await FacultyHistory.updateOne(
-        {
-          facultyId: currentHod.employeeId,
-          role: "hod",
-          department,
-          endDate: { $exists: false },
-        },
-        {
-          endDate: new Date(createdDate),
-          reason: `Replaced by ${faculty.name}`,
-        }
+    // Validate facultyId format
+    if (!mongoose.isValidObjectId(facultyId)) {
+      console.log("[assignHod] Validation failed: Invalid facultyId format", {
+        facultyId,
+      });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid facultyId format",
+      });
+    }
+
+    // Validate createdDate
+    const startDate = new Date(createdDate);
+    if (isNaN(startDate.getTime())) {
+      console.log("[assignHod] Validation failed: Invalid createdDate", {
+        createdDate,
+      });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid createdDate format",
+      });
+    }
+
+    // Find the faculty
+    console.log("[assignHod] Finding faculty with ID:", facultyId);
+    const faculty = await Faculty.findById(facultyId);
+    if (!faculty) {
+      console.log("[assignHod] Faculty not found for ID:", facultyId);
+      return res.status(404).json({
+        success: false,
+        message: "Faculty not found",
+      });
+    }
+
+    // Validate faculty department and type
+    console.log("[assignHod] Validating faculty:", {
+      facultyId: faculty._id,
+      department: faculty.department,
+      type: faculty.type,
+    });
+    if (faculty.department !== department || faculty.type !== "teaching") {
+      console.log("[assignHod] Faculty validation failed", {
+        facultyDepartment: faculty.department,
+        requestDepartment: department,
+        facultyType: faculty.type,
+      });
+      return res.status(400).json({
+        success: false,
+        message:
+          "Faculty must be a teaching member of the specified department",
+      });
+    }
+
+    // Find and update previous HOD
+    console.log(
+      "[assignHod] Checking for previous HOD in department:",
+      department
+    );
+    const previousHod = await Faculty.findOne({
+      department,
+      role: "HOD",
+      _id: { $ne: facultyId },
+    });
+    if (previousHod) {
+      console.log("[assignHod] Found previous HOD:", previousHod._id);
+      try {
+        previousHod.role = null;
+        previousHod.type = "teaching";
+        await previousHod.save();
+        console.log("[assignHod] Previous HOD updated:", previousHod._id);
+
+        // Update HOD history for previous HOD
+        console.log(
+          "[assignHod] Updating HODHistory for previous HOD:",
+          previousHod._id
+        );
+        const historyUpdate = await HODHistory.findOneAndUpdate(
+          { facultyId: previousHod._id, department, endDate: null },
+          { endDate: new Date() },
+          { new: true }
+        );
+        console.log(
+          "[assignHod] HODHistory update result:",
+          historyUpdate ? historyUpdate._id : "none"
+        );
+      } catch (error) {
+        console.error("[assignHod] Failed to update previous HOD:", {
+          previousHodId: previousHod._id,
+          message: error.message,
+          stack: error.stack,
+        });
+        // Continue with new HOD assignment despite failure
+      }
+    } else {
+      console.log(
+        "[assignHod] No previous HOD found for department:",
+        department
       );
     }
 
     // Assign new HOD
+    console.log("[assignHod] Assigning new HOD:", facultyId);
     faculty.role = "hod";
+    faculty.type = "HOD";
     await faculty.save();
+    console.log("[assignHod] New HOD saved:", facultyId);
 
-    // Create new FacultyHistory entry
-    const historyEntry = new FacultyHistory({
-      facultyId: faculty.employeeId,
-      name: faculty.name,
-      role: "hod",
+    // Create HOD history entry
+    console.log("[assignHod] Creating HODHistory entry for:", facultyId);
+    const name =
+      `${faculty.title || ""} ${faculty.firstName || ""} ${
+        faculty.lastName || ""
+      }`.trim() || "Unknown";
+    const hodHistoryEntry = new HODHistory({
+      facultyId: faculty._id,
+      name,
       department,
-      startDate: new Date(createdDate),
+      startDate,
       reason,
       notes,
     });
-    await historyEntry.save();
+    await hodHistoryEntry.save();
+    console.log("[assignHod] HODHistory entry created:", hodHistoryEntry._id);
 
-    res.status(200).json({ message: "HOD assigned successfully", faculty });
+    console.log("[assignHod] Success: HOD assigned", {
+      facultyId: faculty._id,
+      department,
+    });
+    return res.status(200).json({
+      success: true,
+      message: `${
+        faculty.firstName || "Faculty"
+      } assigned as HOD for ${department}`,
+      data: {
+        facultyId: faculty._id,
+        name: faculty.firstName || "Unknown",
+        department,
+        role: faculty.role,
+        type: faculty.type,
+      },
+    });
   } catch (error) {
-    console.error("Error assigning HOD:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("[assignHod] Error:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      requestBody: req.body,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
-// Assign Principal
-exports.assignPrincipal = async (req, res) => {
-  const { facultyId, reason, notes, createdDate } = req.body;
-
-  if (!facultyId || !reason || !createdDate) {
-    return res.status(400).json({ message: "Missing required fields" });
-  }
-
+const assignPrincipal = async (req, res) => {
   try {
-    const faculty = await Faculty.findById(facultyId);
-    if (!faculty) {
-      return res.status(404).json({ message: "Faculty not found" });
+    console.log("Received assignPrincipal request with body:", req.body);
+
+    const { facultyId, reason, createdDate, notes } = req.body;
+
+    // Validate required fields
+    if (!facultyId || !reason || !createdDate) {
+      console.log("Missing required fields:", {
+        facultyId,
+        reason,
+        createdDate,
+      });
+      return res.status(400).json({
+        success: false,
+        message: "facultyId, reason, and createdDate are required",
+      });
     }
 
-    // Find and update the current Principal (if any)
-    const currentPrincipal = await Faculty.findOne({ role: "principal" });
-    if (currentPrincipal) {
-      currentPrincipal.role = null;
-      await currentPrincipal.save();
-      // Update FacultyHistory for the previous Principal
-      await FacultyHistory.updateOne(
-        {
-          facultyId: currentPrincipal.employeeId,
-          role: "principal",
-          endDate: { $exists: false },
-        },
-        {
-          endDate: new Date(createdDate),
-          reason: `Replaced by ${faculty.name}`,
-        }
+    // Validate facultyId format
+    if (!mongoose.isValidObjectId(facultyId)) {
+      console.log(`Invalid facultyId format: ${facultyId}`);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid facultyId format",
+      });
+    }
+
+    // Validate createdDate
+    const startDate = new Date(createdDate);
+    if (isNaN(startDate.getTime())) {
+      console.log(`Invalid createdDate: ${createdDate}`);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid createdDate format",
+      });
+    }
+
+    // Find the faculty
+    const faculty = await Faculty.findById(facultyId);
+    if (!faculty) {
+      console.log(`Faculty not found for facultyId: ${facultyId}`);
+      return res.status(404).json({
+        success: false,
+        message: "Faculty not found",
+      });
+    }
+
+    // Ensure the faculty is non-teaching
+    if (faculty.type !== "non-teaching") {
+      console.log(`Faculty is not non-teaching: type=${faculty.type}`);
+      return res.status(400).json({
+        success: false,
+        message: "Faculty must be non-teaching to be assigned as Principal",
+      });
+    }
+
+    // Find and update the previous Principal
+    const previousPrincipal = await Faculty.findOne({
+      role: "principal",
+      _id: { $ne: facultyId },
+    });
+    if (previousPrincipal) {
+      console.log(`Found previous Principal: ${previousPrincipal._id}`);
+      previousPrincipal.role = null;
+      previousPrincipal.type = "non-teaching";
+      await previousPrincipal.save();
+
+      // Update Principal history for previous Principal
+      const historyUpdate = await PrincipalHistory.findOneAndUpdate(
+        { facultyId: previousPrincipal._id, endDate: null },
+        { endDate: new Date() },
+        { new: true }
+      );
+      console.log(
+        `Updated PrincipalHistory: ${
+          historyUpdate ? historyUpdate._id : "none"
+        }`
       );
     }
 
     // Assign new Principal
+    console.log(`Assigning Principal to facultyId: ${facultyId}`);
     faculty.role = "principal";
+    faculty.type = "principal";
     await faculty.save();
 
-    // Create new FacultyHistory entry
-    const historyEntry = new FacultyHistory({
-      facultyId: faculty.employeeId,
-      name: faculty.name,
-      role: "principal",
-      startDate: new Date(createdDate),
+    // Create Principal history entry
+    const principalHistoryEntry = new PrincipalHistory({
+      facultyId: faculty._id,
+      name:
+        `${faculty.title || ""} ${faculty.firstName || ""} ${
+          faculty.lastName || ""
+        }`.trim() || "Unknown",
+      startDate,
       reason,
       notes,
     });
-    await historyEntry.save();
+    await principalHistoryEntry.save();
+    console.log(`Created PrincipalHistory entry: ${principalHistoryEntry._id}`);
 
-    res
-      .status(200)
-      .json({ message: "Principal assigned successfully", faculty });
+    return res.status(200).json({
+      success: true,
+      message: `${faculty.firstName} assigned as Principal`,
+      data: {
+        facultyId: faculty._id,
+        name: faculty.firstName,
+        role: faculty.role,
+        type: faculty.type,
+      },
+    });
   } catch (error) {
-    console.error("Error assigning Principal:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Assign Principal Error:", {
+      message: error.message,
+      stack: error.stack,
+      requestBody: req.body,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
+};
+
+const getHodHistory = async (req, res) => {
+  try {
+    console.log("Fetching HOD history");
+    const history = await HODHistory.find().lean();
+    const groupedHistory = history.reduce((acc, entry) => {
+      acc[entry.department] = acc[entry.department] || [];
+      acc[entry.department].push(entry);
+      return acc;
+    }, {});
+
+    return res.status(200).json({
+      success: true,
+      data: groupedHistory,
+    });
+  } catch (error) {
+    console.error("Get HOD History Error:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+const getPrincipalHistory = async (req, res) => {
+  try {
+    console.log("Fetching Principal history");
+    const history = await PrincipalHistory.find().lean();
+    return res.status(200).json({
+      success: true,
+      data: history,
+    });
+  } catch (error) {
+    console.error("Get Principal History Error:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  assignHod,
+  assignPrincipal,
+  getHodHistory,
+  getPrincipalHistory,
 };

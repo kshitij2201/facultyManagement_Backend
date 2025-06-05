@@ -12,6 +12,7 @@ const {
   getLastEmployeeId,
   assignCC,
   getCCAssignments,
+  deleteCCAssignment,
 } = require("../controllers/facultyController");
 const {
   getHodHistory,
@@ -42,5 +43,6 @@ router.post("/assign-hod", assignHod);
 router.post("/assign-principal", assignPrincipal);
 router.post("/assign-cc", assignCC);
 router.get("/cc-assignments", getCCAssignments);
+router.post("/delete-cc-assignment", deleteCCAssignment);
 
 module.exports = router;

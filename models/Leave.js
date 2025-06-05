@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const leaveSchema = new mongoose.Schema({
   employeeId: { type: String, required: true },
-  name: { type: String, required: true },
+  firstName: { type: String, required: true },
   department: { type: String, required: true },
   leaveType: {
     type: String,

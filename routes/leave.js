@@ -2,7 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
 const Leave = require("../models/Leave");
-const Principal = require("../models/Principal");
+const Principal = require("../models/PrincipalHistory");
 const LeaveSummary = require("../models/LeaveSummary");
 const Faculty = require("../models/faculty");
 
@@ -25,8 +25,15 @@ const calculateLeaveDays = (startDate, endDate) => {
 // Apply for leave
 router.post("/apply", async (req, res) => {
   try {
-    const { employeeId, leaveType, startDate, endDate, reason, type } =
-      req.body;
+    const {
+      employeeId,
+      leaveType,
+      startDate,
+      firstName,
+      endDate,
+      reason,
+      type,
+    } = req.body;
 
     // Validate faculty
     const faculty = await Faculty.findOne({ employeeId });
@@ -40,7 +47,7 @@ router.post("/apply", async (req, res) => {
     // Create leave request
     const leave = new Leave({
       employeeId,
-      name: faculty.name,
+      firstName: firstName,
       department: faculty.department,
       leaveType,
       type,
@@ -59,7 +66,6 @@ router.post("/apply", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 router.get("/hod/:department", async (req, res) => {
   try {
@@ -89,18 +95,6 @@ router.put("/hod/:leaveId", async (req, res) => {
       return res.status(404).json({ message: "Leave request not found" });
     }
 
-    // Validate HOD
-    // const collectionName = sanitizeCollectionName(leave.department);
-    // const DepartmentHOD = mongoose.model(
-    //   collectionName,
-    //   hodSchema,
-    //   collectionName
-    // );
-    // const hod = await DepartmentHOD.findOne({ employeeId: hodEmployeeId });
-    // if (!hod) {
-    //   return res.status(403).json({ message: "Not authorized as HOD" });
-    // }
-
     const hod = await Faculty.findOne({
       employeeId: hodEmployeeId,
       department: leave.department,
@@ -123,9 +117,9 @@ router.put("/hod/:leaveId", async (req, res) => {
       .status(200)
       .json({ message: `Leave request ${decision.toLowerCase()} by HOD` });
   } catch (error) {
-  console.error(error);
-  res.status(500).json({ message: "Server error" });
-}
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 // Principal view and decide on leave requests
@@ -170,7 +164,6 @@ router.get("/principal/:department", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 //   try {
 //     const { leaveId } = req.params;
@@ -315,12 +308,12 @@ router.put("/principal/:leaveId", async (req, res) => {
     }
 
     res.status(200).json({
-      message: `Leave request ${ decision.toLowerCase() } by Principal`,
+      message: `Leave request ${decision.toLowerCase()} by Principal`,
     });
   } catch (error) {
-  console.error(error);
-  res.status(500).json({ message: "Server error" });
-}
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 // Get leave summary for a faculty

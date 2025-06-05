@@ -1,29 +1,13 @@
-// backend/models/Faculty.js
 const mongoose = require("mongoose");
 
 const facultySchema = new mongoose.Schema({
   ccAssignments: [
     {
-      academicYear: {
-        type: String,
-        required: true,
-      },
-      semester: {
-        type: String,
-        required: true,
-      },
-      section: {
-        type: String,
-        required: true,
-      },
-      department: {
-        type: String,
-        required: true,
-      },
-      assignedAt: {
-        type: Date,
-        default: Date.now,
-      },
+      academicYear: { type: String, required: true },
+      semester: { type: String, required: true },
+      section: { type: String, required: true },
+      department: { type: String, required: true },
+      assignedAt: { type: Date, default: Date.now },
     },
   ],
   employeeId: {
@@ -33,12 +17,12 @@ const facultySchema = new mongoose.Schema({
   },
   title: {
     type: String,
-    required: true,
     enum: ["Mr", "Ms", "Mrs", "Dr", "Prof"],
+    default: "Mr", // Optional with default
   },
   firstName: {
     type: String,
-    required: true,
+    default: "", // Optional
   },
   middleName: {
     type: String,
@@ -46,7 +30,7 @@ const facultySchema = new mongoose.Schema({
   },
   lastName: {
     type: String,
-    required: true,
+    default: "", // Optional
   },
   email: {
     type: String,
@@ -56,25 +40,25 @@ const facultySchema = new mongoose.Schema({
   },
   gender: {
     type: String,
-    required: true,
     enum: ["Male", "Female", "Other"],
+    default: "Other", // Optional with default
   },
   designation: {
     type: String,
-    required: true,
+    default: "", // Optional
   },
   mobile: {
     type: String,
-    required: true,
     match: [/^\d{10}$/, "Mobile number must be 10 digits"],
+    default: "0000000000", // Optional with default
   },
   dateOfBirth: {
     type: Date,
-    required: true,
+    default: null, // Optional
   },
   dateOfJoining: {
     type: Date,
-    required: true,
+    default: null, // Optional
   },
   department: {
     type: String,
@@ -92,17 +76,17 @@ const facultySchema = new mongoose.Schema({
   },
   address: {
     type: String,
-    required: true,
+    default: "", // Optional
   },
   aadhaar: {
     type: String,
-    required: true,
     match: [/^\d{12}$/, "Aadhaar number must be 12 digits"],
+    default: "000000000000", // Optional with default
   },
   employmentType: {
     type: String,
-    required: true,
     enum: ["Permanent", "Contract", "Visiting", "Part-time"],
+    default: "Contract", // Optional with default
   },
   status: {
     type: String,
@@ -112,13 +96,18 @@ const facultySchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ["teaching", "non-teaching"],
+    enum: ["teaching", "non-teaching", "HOD", "principal", "cc"],
+    default: "teaching",
+  },
+  role: {
+    // Added role field
+    type: String,
+    enum: [null, "hod", "principal"],
+    default: null,
   },
   teachingExperience: {
     type: Number,
-    required: function () {
-      return this.type === "teaching";
-    },
+    default: 0, // Optional
   },
   subjectsTaught: {
     type: [String],
@@ -130,7 +119,7 @@ const facultySchema = new mongoose.Schema({
   },
   fathersName: {
     type: String,
-    required: true,
+    default: "", // Optional
   },
   rfidNo: {
     type: String,
@@ -159,7 +148,7 @@ const facultySchema = new mongoose.Schema({
   },
   dateOfRetirement: {
     type: Date,
-    required: true,
+    default: null, // Optional
   },
   relievingDate: {
     type: Date,
@@ -194,16 +183,15 @@ const facultySchema = new mongoose.Schema({
   },
   bankName: {
     type: String,
-    required: true,
+    default: "", // Optional
   },
   panNumber: {
     type: String,
-    required: true,
     match: [/^[A-Z]{5}\d{4}[A-Z]{1}$/, "Invalid PAN number format"],
+    default: "", // Optional
   },
   motherTongue: {
     type: String,
-    required: true,
     enum: [
       "Marathi",
       "Hindi",
@@ -217,15 +205,16 @@ const facultySchema = new mongoose.Schema({
       "Punjabi",
       "Other",
     ],
+    default: "Other", // Optional with default
   },
   designationNature: {
     type: String,
-    required: true,
     enum: ["Permanent", "Temporary", "Contract", "Visiting"],
+    default: "Contract", // Optional with default
   },
   pf: {
     type: String,
-    required: true,
+    default: "", // Optional
   },
   pfNumber: {
     type: String,
@@ -237,7 +226,7 @@ const facultySchema = new mongoose.Schema({
   },
   bankBranchName: {
     type: String,
-    required: true,
+    default: "", // Optional
   },
   uanNumber: {
     type: String,
@@ -245,8 +234,8 @@ const facultySchema = new mongoose.Schema({
   },
   ifscCode: {
     type: String,
-    required: true,
     match: [/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code format"],
+    default: "", // Optional
   },
   esicNumber: {
     type: String,
@@ -254,16 +243,15 @@ const facultySchema = new mongoose.Schema({
   },
   pfApplicable: {
     type: String,
-    required: true,
     enum: ["Yes", "No"],
+    default: "No", // Optional with default
   },
-
   imageUpload: {
-    type: String, // Store file path or URL after uploading
+    type: String,
     default: "",
   },
   signatureUpload: {
-    type: String, // Store file path or URL after uploading
+    type: String,
     default: "",
   },
   createdAt: {
@@ -272,7 +260,6 @@ const facultySchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    // required: true,
   },
 });
 
