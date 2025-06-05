@@ -1,5 +1,5 @@
 const Faculty = require("../models/faculty");
-const Student = require("../models/Student");
+const Student = require("../models/student");
 const Subject = require("../models/Subject");
 const Attendance = require("../models/Attendance");
 const SalaryRecord = require("../models/SalaryRecord");
